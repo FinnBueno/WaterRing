@@ -1,0 +1,4 @@
+name: WaterRing
+version: '1.0.0'
+main: me.finnbueno.waterRing.WaterRing
+api-version: '1.21'
