@@ -1,5 +1,6 @@
 package me.finnbueno.waterRing;
 
+import com.projectkorra.projectkorra.ProjectKorra;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.ComboAbility;
 import com.projectkorra.projectkorra.ability.WaterAbility;
@@ -8,9 +9,18 @@ import com.projectkorra.projectkorra.util.BlockSource;
 import com.projectkorra.projectkorra.util.BlockSourceInformation;
 import com.projectkorra.projectkorra.util.ClickType;
 import com.projectkorra.projectkorra.util.TempBlock;
+import com.projectkorra.projectkorra.waterbending.SurgeWall;
+import com.projectkorra.projectkorra.waterbending.SurgeWave;
+import com.projectkorra.projectkorra.waterbending.Torrent;
+import com.projectkorra.projectkorra.waterbending.WaterManipulation;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.Block;
 import org.bukkit.block.data.Levelled;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
@@ -24,6 +34,16 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     Per player, per type of source (water, earth, etc.), per clicking type (shift or click), track a block
      */
     private static Map<Player, Map<BlockSource.BlockSourceType, Map<ClickType, BlockSourceInformation>>> playerSources;
+
+    // TODO for later
+    // When an ability ends from which the water could be re-used (like SurgeWall), perhaps have
+    // the water return to the ring using AbilityEndEvent. This way, it can REALLY become re-usable
+    public static final Map<Class<? extends WaterAbility>, ConsumptionConfiguration<? extends WaterAbility>> CONSUMPTION_CONFIGURATION = Map.of(
+                Torrent.class, ConsumptionConfiguration.TORRENT,
+            WaterManipulation.class, ConsumptionConfiguration.WATER_MANIPULATION,
+            SurgeWave.class, ConsumptionConfiguration.SURGE_WAVE,
+            SurgeWall.class, ConsumptionConfiguration.SURGE_WALL
+    );
 
     private static final Vector[] ANIMATION_VECTORS = new Vector[] {
             new Vector(0, 0, 2),
@@ -43,26 +63,52 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     private final BlockSourceInformation shiftDownSourceInfo;
     private final BlockSourceInformation leftClickSourceInfo;
     private final Collection<TempBlock> animationBlocks;
+    private final BossBar bossBar;
+    private int usesLeft;
 
     public static Vector getRandomAnimationPosition() {
         // return ANIMATION_VECTORS[ThreadLocalRandom.current().nextInt(12)].clone();
         return new Vector();
     }
 
+    public static void attemptConsumption(WaterAbility ability) {
+        // todo
+        if (!(ability instanceof WaterAbility waterAbility)) {
+            return;
+        }
+        Class<? extends WaterAbility> waterAbilityClass = waterAbility.getClass();
+
+        // unfortunately there is no way to make this part work with generics
+        ConsumptionConfiguration configuration = CONSUMPTION_CONFIGURATION.get(waterAbilityClass);
+        if (configuration == null) {
+            return;
+        }
+        Block block = configuration.getSourceBlock(waterAbility);
+
+        if (block instanceof VirtualWaterSourceBlock virtualWaterSourceBlock) {
+            virtualWaterSourceBlock.getAssociatedWaterRing().decreaseUses(configuration.getUses());
+        }
+    }
+
     public WaterRing(Player player) {
         super(player);
 
-        animationBlocks = new HashSet<>();
+        this.usesLeft = 20;
+
+        this.animationBlocks = new HashSet<>();
+
+        this.bossBar = Bukkit.createBossBar("Water Ammunition Left", BarColor.BLUE, BarStyle.SEGMENTED_10);
+        this.bossBar.addPlayer(player);
 
         this.shiftDownSourceInfo = new BlockSourceInformation(
                 player,
-                new VirtualWaterSourceBlock(bPlayer),
+                new VirtualWaterSourceBlock(this, player),
                 BlockSource.BlockSourceType.WATER,
                 ClickType.SHIFT_DOWN
         );
         this.leftClickSourceInfo = new BlockSourceInformation(
                 player,
-                new VirtualWaterSourceBlock(bPlayer),
+                new VirtualWaterSourceBlock(this, player),
                 BlockSource.BlockSourceType.WATER,
                 ClickType.LEFT_CLICK
         );
@@ -71,16 +117,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         start();
     }
 
-    private void printSources() {
-        playerSources.forEach((player, sources) -> {
-            player.sendMessage("Sources for player " + player.getName() + "...");
-            sources.forEach((sourceType, clickTypeWithInfo) -> {
-                player.sendMessage("  Source: " + sourceType);
-                clickTypeWithInfo.forEach((clickType, info) -> {
-                    player.sendMessage("    ClickType: " + clickType + " - Is virtual: " + (info.getBlock() instanceof VirtualWaterSourceBlock));
-                });
-            });
-        });
+    public static void attemptRefund(WaterAbility waterAbility) {
     }
 
     private void enterFakeSourceBlock() {
@@ -104,7 +141,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             return;
         }
 
-        if (getStartTime() + 10000 < System.currentTimeMillis()) {
+        if (this.usesLeft <= 0) {
             remove();
             return;
         }
@@ -113,7 +150,16 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             printSources();
         }
 
+        updateBossBar();
         displayRing();
+    }
+
+    private void updateBossBar() {
+        this.bossBar.setProgress(usesLeft / 20.0);
+    }
+
+    public void decreaseUses(int amount) {
+        this.usesLeft -= amount;
     }
 
     private void clearOldRing() {
@@ -136,7 +182,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     }
 
     private int getWaterLevelForStep(long step) {
-        step += getRunningTicks() / 4;
+        step += getRunningTicks() / 2;
         step %= 12;
 
         if (step == 0 || step == 2) {
@@ -165,6 +211,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         clearOldRing();
         removeVirtualSources();
         printSources();
+        this.bossBar.removeAll();
         super.remove();
     }
 
@@ -202,6 +249,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
+        ProjectKorra.plugin.getServer().getPluginManager().registerEvents(new WaterRingListener(), ProjectKorra.plugin);
     }
 
     @Override
@@ -232,5 +280,17 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
                 new ComboManager.AbilityInformation("WaterManipulation", ClickType.LEFT_CLICK),
                 new ComboManager.AbilityInformation("Torrent", ClickType.SHIFT_UP)
         ));
+    }
+
+    private void printSources() {
+        playerSources.forEach((player, sources) -> {
+            player.sendMessage("Sources for player " + player.getName() + "...");
+            sources.forEach((sourceType, clickTypeWithInfo) -> {
+                player.sendMessage("  Source: " + sourceType);
+                clickTypeWithInfo.forEach((clickType, info) -> {
+                    player.sendMessage("    ClickType: " + clickType + " - Is virtual: " + (info.getBlock() instanceof VirtualWaterSourceBlock));
+                });
+            });
+        });
     }
 }
