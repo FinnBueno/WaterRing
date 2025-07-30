@@ -3,6 +3,7 @@ package me.finnbueno.waterRing;
 import com.projectkorra.projectkorra.ProjectKorra;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.ComboAbility;
+import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.WaterAbility;
 import com.projectkorra.projectkorra.ability.util.ComboManager;
 import com.projectkorra.projectkorra.util.BlockSource;
@@ -26,7 +27,6 @@ import org.bukkit.util.Vector;
 
 import java.lang.reflect.Field;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 
 public class WaterRing extends WaterAbility implements AddonAbility, ComboAbility {
 
@@ -64,36 +64,46 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     private final BlockSourceInformation leftClickSourceInfo;
     private final Collection<TempBlock> animationBlocks;
     private final BossBar bossBar;
+    private final Map<WaterAbility, Integer> refundableConsumptions;
     private int usesLeft;
 
-    public static Vector getRandomAnimationPosition() {
-        // return ANIMATION_VECTORS[ThreadLocalRandom.current().nextInt(12)].clone();
-        return new Vector();
+    public static Vector getRandomAnimationPosition(Player player) {
+        return ANIMATION_VECTORS[(getLookingAtIndex(player) + 6) % 12].clone();
     }
 
-    public static void attemptConsumption(WaterAbility ability) {
-        // todo
-        if (!(ability instanceof WaterAbility waterAbility)) {
-            return;
-        }
-        Class<? extends WaterAbility> waterAbilityClass = waterAbility.getClass();
-
+    public static void attemptConsumption(WaterAbility waterAbility) {
         // unfortunately there is no way to make this part work with generics
-        ConsumptionConfiguration configuration = CONSUMPTION_CONFIGURATION.get(waterAbilityClass);
+        ConsumptionConfiguration configuration = CONSUMPTION_CONFIGURATION.get(waterAbility.getClass());
         if (configuration == null) {
             return;
         }
         Block block = configuration.getSourceBlock(waterAbility);
 
         if (block instanceof VirtualWaterSourceBlock virtualWaterSourceBlock) {
-            virtualWaterSourceBlock.getAssociatedWaterRing().decreaseUses(configuration.getUses());
+            WaterRing waterRing = virtualWaterSourceBlock.getAssociatedWaterRing();
+            waterRing.decreaseUses(configuration.getUses());
+            if (configuration.isRefundable()) {
+                waterRing.registerRefundableConsumption(waterAbility, configuration.getUses());
+            }
         }
+    }
+
+    public static void attemptRefund(WaterAbility waterAbility) {
+        Player player = waterAbility.getPlayer();
+        WaterRing waterRing = CoreAbility.getAbility(player, WaterRing.class);
+        if (waterRing == null) {
+            return;
+        }
+
+        waterRing.refundAbility(waterAbility);
     }
 
     public WaterRing(Player player) {
         super(player);
 
         this.usesLeft = 20;
+
+        this.refundableConsumptions = new HashMap<>();
 
         this.animationBlocks = new HashSet<>();
 
@@ -115,9 +125,6 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
 
         enterFakeSourceBlock();
         start();
-    }
-
-    public static void attemptRefund(WaterAbility waterAbility) {
     }
 
     private void enterFakeSourceBlock() {
@@ -162,11 +169,25 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         this.usesLeft -= amount;
     }
 
+    private void registerRefundableConsumption(WaterAbility waterAbility, int charges) {
+        this.refundableConsumptions.put(waterAbility, charges);
+    }
+
+    private void refundAbility(WaterAbility waterAbility) {
+        if (!refundableConsumptions.containsKey(waterAbility)) {
+            return;
+        }
+        this.usesLeft += refundableConsumptions.get(waterAbility);
+    }
+
     private void clearOldRing() {
         animationBlocks.forEach(TempBlock::revertBlock);
     }
 
     private void displayRing() {
+
+        int lookingAtIndex = getLookingAtIndex(player);
+
         clearOldRing();
         Location at = player.getEyeLocation();
         for (int step = 0; step < 12; step++) {
@@ -176,9 +197,21 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
 
             int levelForStep = getWaterLevelForStep(step);
             waterLevelData.setLevel(levelForStep == 7 ? waterLevelData.getMaximumLevel() : levelForStep);
-            animationBlocks.add(new TempBlock(at.getBlock(), waterLevelData));
+            int toTheLeft = lookingAtIndex == 0 ? 11 : lookingAtIndex - 1;
+            int toTheRight = (lookingAtIndex + 1) % 12;
+            if (step != lookingAtIndex && step != toTheRight && step != toTheLeft) {
+                animationBlocks.add(new TempBlock(at.getBlock(), waterLevelData));
+            }
             at.subtract(animationStep);
         }
+    }
+
+    private static int getLookingAtIndex(Player player) {
+        float yaw = player.getEyeLocation().getYaw() + 180 + 15;
+        if (yaw < 0) {
+            yaw = 360 + yaw;
+        }
+        return (((int) Math.floor(yaw / 30)) + 6) % 12;
     }
 
     private int getWaterLevelForStep(long step) {
@@ -288,7 +321,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             sources.forEach((sourceType, clickTypeWithInfo) -> {
                 player.sendMessage("  Source: " + sourceType);
                 clickTypeWithInfo.forEach((clickType, info) -> {
-                    player.sendMessage("    ClickType: " + clickType + " - Is virtual: " + (info.getBlock() instanceof VirtualWaterSourceBlock));
+                    player.sendMessage("    ClickType: " + clickType + " - Exist: " + (info.getBlock() != null) + " - Is virtual: " + (info.getBlock() instanceof VirtualWaterSourceBlock));
                 });
             });
         });

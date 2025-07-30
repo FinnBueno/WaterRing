@@ -20,15 +20,21 @@ import java.util.Objects;
 
 public class VirtualWaterSourceBlock implements Block {
 
+    private final WaterRing waterRing;
     private final Player player;
 
-    public VirtualWaterSourceBlock(BendingPlayer bender) {
-        this.player = bender.getPlayer();
+    public VirtualWaterSourceBlock(WaterRing waterRing, Player player) {
+        this.waterRing = waterRing;
+        this.player = player;
     }
 
+    public WaterRing getAssociatedWaterRing() {
+        return waterRing;
+    }
+    
     private Block getEyeBlock() {
         Location eyeLocation = player.getEyeLocation();
-        Vector offset = WaterRing.getRandomAnimationPosition();
+        Vector offset = WaterRing.getRandomAnimationPosition(player);
         return eyeLocation.add(offset).getBlock();
     }
 
