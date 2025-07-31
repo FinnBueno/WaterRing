@@ -60,18 +60,27 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             new Vector(1, 0, 2),
     };
 
-    private final BlockSourceInformation shiftDownSourceInfo;
-    private final BlockSourceInformation leftClickSourceInfo;
     private final Collection<TempBlock> animationBlocks;
     private final BossBar bossBar;
-    private final Map<WaterAbility, Integer> refundableConsumptions;
-    private int usesLeft;
+    private final Map<WaterAbility, Integer> refundableConsumers;
+    private int ammunition;
+    private Block ringBlockOnCrosshair;
+    private BlockSourceInformation leftClickSourceInfo;
+    private BlockSourceInformation shiftDownSourceInfo;
 
-    public static Vector getRandomAnimationPosition(Player player) {
-        return ANIMATION_VECTORS[(getLookingAtIndex(player) + 6) % 12].clone();
+    public static Block getRingBlockOnCrosshair(Player player) {
+        return player.getEyeLocation().add(ANIMATION_VECTORS[getLookingAtIndex(player) % 12]).getBlock();
     }
 
-    public static void attemptConsumption(WaterAbility waterAbility) {
+    private static int getLookingAtIndex(Player player) {
+        float yaw = player.getEyeLocation().getYaw() + 180 + 15;
+        if (yaw < 0) {
+            yaw = 360 + yaw;
+        }
+        return (((int) Math.floor(yaw / 30)) + 6) % 12;
+    }
+
+    public static void attemptAmmunitionConsumption(WaterAbility waterAbility) {
         // unfortunately there is no way to make this part work with generics
         ConsumptionConfiguration configuration = CONSUMPTION_CONFIGURATION.get(waterAbility.getClass());
         if (configuration == null) {
@@ -83,57 +92,35 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             WaterRing waterRing = virtualWaterSourceBlock.getAssociatedWaterRing();
             waterRing.decreaseUses(configuration.getUses());
             if (configuration.isRefundable()) {
-                waterRing.registerRefundableConsumption(waterAbility, configuration.getUses());
+                waterRing.registerRefundableAmmunition(waterAbility, configuration.getUses());
             }
         }
     }
 
-    public static void attemptRefund(WaterAbility waterAbility) {
+    public static void attemptAmmunitionRefund(WaterAbility waterAbility) {
         Player player = waterAbility.getPlayer();
         WaterRing waterRing = CoreAbility.getAbility(player, WaterRing.class);
         if (waterRing == null) {
             return;
         }
 
-        waterRing.refundAbility(waterAbility);
+        waterRing.refundAmmunition(waterAbility);
     }
 
     public WaterRing(Player player) {
         super(player);
 
-        this.usesLeft = 20;
+        this.ammunition = 20;
 
-        this.refundableConsumptions = new HashMap<>();
+        this.refundableConsumers = new HashMap<>();
 
         this.animationBlocks = new HashSet<>();
 
         this.bossBar = Bukkit.createBossBar("Water Ammunition Left", BarColor.BLUE, BarStyle.SEGMENTED_10);
         this.bossBar.addPlayer(player);
 
-        this.shiftDownSourceInfo = new BlockSourceInformation(
-                player,
-                new VirtualWaterSourceBlock(this, player),
-                BlockSource.BlockSourceType.WATER,
-                ClickType.SHIFT_DOWN
-        );
-        this.leftClickSourceInfo = new BlockSourceInformation(
-                player,
-                new VirtualWaterSourceBlock(this, player),
-                BlockSource.BlockSourceType.WATER,
-                ClickType.LEFT_CLICK
-        );
-
-        enterFakeSourceBlock();
+        refreshVirtualSources(getRingBlockOnCrosshair(player));
         start();
-    }
-
-    private void enterFakeSourceBlock() {
-        printSources();
-        var sourcesForPlayer = playerSources.computeIfAbsent(player, (_) -> new HashMap<>());
-        var sourcesForWater = sourcesForPlayer.computeIfAbsent(BlockSource.BlockSourceType.WATER, (_) -> new HashMap<>());
-
-        sourcesForWater.put(ClickType.SHIFT_DOWN, shiftDownSourceInfo);
-        sourcesForWater.put(ClickType.LEFT_CLICK, leftClickSourceInfo);
     }
 
     @Override
@@ -148,7 +135,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             return;
         }
 
-        if (this.usesLeft <= 0) {
+        if (this.ammunition <= 0) {
             remove();
             return;
         }
@@ -157,27 +144,37 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             printSources();
         }
 
-        updateBossBar();
+        Block currentRingBlockOnCrosshair = getRingBlockOnCrosshair(player);
+        if (this.ringBlockOnCrosshair != currentRingBlockOnCrosshair) {
+            refreshVirtualSources(currentRingBlockOnCrosshair);
+        }
+
+        this.bossBar.setProgress(ammunition / 20.0);
         displayRing();
     }
 
-    private void updateBossBar() {
-        this.bossBar.setProgress(usesLeft / 20.0);
-    }
+    private void refreshVirtualSources(Block block) {
+        printSources();
+        var sourcesForPlayer = playerSources.computeIfAbsent(player, (_) -> new HashMap<>());
+        var sourcesForWater = sourcesForPlayer.computeIfAbsent(BlockSource.BlockSourceType.WATER, (_) -> new HashMap<>());
 
-    public void decreaseUses(int amount) {
-        this.usesLeft -= amount;
-    }
+        this.leftClickSourceInfo = new BlockSourceInformation(
+                player,
+                new VirtualWaterSourceBlock(this, player, block),
+                BlockSource.BlockSourceType.WATER,
+                ClickType.SHIFT_DOWN
+        );
+        this.shiftDownSourceInfo = new BlockSourceInformation(
+                player,
+                new VirtualWaterSourceBlock(this, player, block),
+                BlockSource.BlockSourceType.WATER,
+                ClickType.LEFT_CLICK
+        );
 
-    private void registerRefundableConsumption(WaterAbility waterAbility, int charges) {
-        this.refundableConsumptions.put(waterAbility, charges);
-    }
+        sourcesForWater.put(ClickType.SHIFT_DOWN, leftClickSourceInfo);
+        sourcesForWater.put(ClickType.LEFT_CLICK, shiftDownSourceInfo);
 
-    private void refundAbility(WaterAbility waterAbility) {
-        if (!refundableConsumptions.containsKey(waterAbility)) {
-            return;
-        }
-        this.usesLeft += refundableConsumptions.get(waterAbility);
+        this.ringBlockOnCrosshair = block;
     }
 
     private void clearOldRing() {
@@ -206,14 +203,6 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         }
     }
 
-    private static int getLookingAtIndex(Player player) {
-        float yaw = player.getEyeLocation().getYaw() + 180 + 15;
-        if (yaw < 0) {
-            yaw = 360 + yaw;
-        }
-        return (((int) Math.floor(yaw / 30)) + 6) % 12;
-    }
-
     private int getWaterLevelForStep(long step) {
         step += getRunningTicks() / 2;
         step %= 12;
@@ -225,6 +214,21 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             return 7;
         }
         return 1;
+    }
+
+    public void decreaseUses(int amount) {
+        this.ammunition -= amount;
+    }
+
+    private void registerRefundableAmmunition(WaterAbility waterAbility, int charges) {
+        this.refundableConsumers.put(waterAbility, charges);
+    }
+
+    private void refundAmmunition(WaterAbility waterAbility) {
+        if (!refundableConsumers.containsKey(waterAbility)) {
+            return;
+        }
+        this.ammunition += refundableConsumers.get(waterAbility);
     }
 
     private void removeVirtualSources() {

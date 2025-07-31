@@ -1,6 +1,5 @@
 package me.finnbueno.waterRing;
 
-import com.projectkorra.projectkorra.BendingPlayer;
 import org.bukkit.*;
 import org.bukkit.block.*;
 import org.bukkit.block.data.BlockData;
@@ -22,10 +21,12 @@ public class VirtualWaterSourceBlock implements Block {
 
     private final WaterRing waterRing;
     private final Player player;
+    private final Block block;
 
-    public VirtualWaterSourceBlock(WaterRing waterRing, Player player) {
+    public VirtualWaterSourceBlock(WaterRing waterRing, Player player, Block block) {
         this.waterRing = waterRing;
         this.player = player;
+        this.block = block;
     }
 
     public WaterRing getAssociatedWaterRing() {
@@ -33,9 +34,7 @@ public class VirtualWaterSourceBlock implements Block {
     }
     
     private Block getEyeBlock() {
-        Location eyeLocation = player.getEyeLocation();
-        Vector offset = WaterRing.getRandomAnimationPosition(player);
-        return eyeLocation.add(offset).getBlock();
+        return this.block;
     }
 
     private Location getEyeBlockLocation() {

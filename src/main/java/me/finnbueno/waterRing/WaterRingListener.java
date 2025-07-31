@@ -13,7 +13,7 @@ public class WaterRingListener implements Listener {
     public void attemptWaterRingConsumption(AbilityStartEvent event) {
         Ability ability = event.getAbility();
         if (ability instanceof WaterAbility waterAbility) {
-            WaterRing.attemptConsumption(waterAbility);
+            WaterRing.attemptAmmunitionConsumption(waterAbility);
         }
     }
 
@@ -21,7 +21,7 @@ public class WaterRingListener implements Listener {
     public void attemptWaterRingRefund(AbilityEndEvent event) {
         Ability ability = event.getAbility();
         if (ability instanceof WaterAbility waterAbility) {
-            WaterRing.attemptRefund(waterAbility);
+            WaterRing.attemptAmmunitionRefund(waterAbility);
         }
     }
 }
