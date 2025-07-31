@@ -35,9 +35,6 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
      */
     private static Map<Player, Map<BlockSource.BlockSourceType, Map<ClickType, BlockSourceInformation>>> playerSources;
 
-    // TODO for later
-    // When an ability ends from which the water could be re-used (like SurgeWall), perhaps have
-    // the water return to the ring using AbilityEndEvent. This way, it can REALLY become re-usable
     public static final Map<Class<? extends WaterAbility>, ConsumptionConfiguration<? extends WaterAbility>> CONSUMPTION_CONFIGURATION = Map.of(
                 Torrent.class, ConsumptionConfiguration.TORRENT,
             WaterManipulation.class, ConsumptionConfiguration.WATER_MANIPULATION,
@@ -135,7 +132,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             return;
         }
 
-        if (this.ammunition <= 0) {
+        if (this.ammunition <= 0 && refundableConsumers.isEmpty()) {
             remove();
             return;
         }
