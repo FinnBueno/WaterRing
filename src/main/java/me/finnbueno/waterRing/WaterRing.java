@@ -77,21 +77,38 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         return (((int) Math.floor(yaw / 30)) + 6) % 12;
     }
 
-    public static void attemptAmmunitionConsumption(WaterAbility waterAbility) {
+    public static boolean isSourcedFromWaterRing(WaterAbility waterAbility) {
         // unfortunately there is no way to make this part work with generics
         ConsumptionConfiguration configuration = CONSUMPTION_CONFIGURATION.get(waterAbility.getClass());
         if (configuration == null) {
-            return;
+            return false;
         }
         Block block = configuration.getSourceBlock(waterAbility);
+        return block instanceof VirtualWaterSourceBlock;
+    }
 
-        if (block instanceof VirtualWaterSourceBlock virtualWaterSourceBlock) {
-            WaterRing waterRing = virtualWaterSourceBlock.getAssociatedWaterRing();
-            waterRing.decreaseUses(configuration.getUses());
-            if (configuration.isRefundable()) {
-                waterRing.registerRefundableAmmunition(waterAbility, configuration.getUses());
-            }
+    public static boolean attemptAmmunitionConsumption(WaterAbility waterAbility) {
+        ConsumptionConfiguration configuration;
+        VirtualWaterSourceBlock virtualWaterSourceBlock;
+        try {
+            configuration = CONSUMPTION_CONFIGURATION.get(waterAbility.getClass());
+            if (configuration == null) throw new NoSuchElementException();
+            virtualWaterSourceBlock = (VirtualWaterSourceBlock) configuration.getSourceBlock(waterAbility);
+        } catch (ClassCastException | NoSuchElementException e) {
+            throw new IllegalArgumentException("Provided ability was not sourced from a WaterRing instance");
         }
+
+        WaterRing waterRing = virtualWaterSourceBlock.getAssociatedWaterRing();
+        if (
+            configuration.getUses() > waterRing.getAmmunitionLeft() ||
+            (configuration.getUses() == -1 && waterRing.getAmmunitionLeft() == 20)) {
+            return false;
+        }
+        waterRing.decreaseUses(configuration.getUses());
+        if (configuration.isRefundable()) {
+            waterRing.registerRefundableAmmunition(waterAbility, configuration.getUses());
+        }
+        return true;
     }
 
     public static void attemptAmmunitionRefund(WaterAbility waterAbility) {
@@ -132,6 +149,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             return;
         }
 
+        // refundableConsumers is not empty?
         if (this.ammunition <= 0 && refundableConsumers.isEmpty()) {
             remove();
             return;
@@ -139,6 +157,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
 
         if (getCurrentTick() % 20 == 0) {
             printSources();
+            player.sendMessage("Refundable consumers: " + refundableConsumers.size());
         }
 
         Block currentRingBlockOnCrosshair = getRingBlockOnCrosshair(player);
@@ -151,7 +170,6 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     }
 
     private void refreshVirtualSources(Block block) {
-        printSources();
         var sourcesForPlayer = playerSources.computeIfAbsent(player, (_) -> new HashMap<>());
         var sourcesForWater = sourcesForPlayer.computeIfAbsent(BlockSource.BlockSourceType.WATER, (_) -> new HashMap<>());
 
@@ -222,10 +240,10 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     }
 
     private void refundAmmunition(WaterAbility waterAbility) {
-        if (!refundableConsumers.containsKey(waterAbility)) {
+        if (!this.refundableConsumers.containsKey(waterAbility)) {
             return;
         }
-        this.ammunition += refundableConsumers.get(waterAbility);
+        this.ammunition += this.refundableConsumers.remove(waterAbility);
     }
 
     private void removeVirtualSources() {
@@ -247,6 +265,10 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         printSources();
         this.bossBar.removeAll();
         super.remove();
+    }
+
+    private int getAmmunitionLeft() {
+        return this.ammunition;
     }
 
     @Override

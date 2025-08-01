@@ -39,7 +39,7 @@ public abstract class ConsumptionConfiguration<T extends WaterAbility> {
 
     private static class TorrentConsumption extends ConsumptionConfiguration<Torrent> {
         public TorrentConsumption() {
-            super(Integer.MAX_VALUE);
+            super(-1);
         }
 
         @Override
@@ -72,7 +72,7 @@ public abstract class ConsumptionConfiguration<T extends WaterAbility> {
 
     private static class SurgeWaveConsumption extends ConsumptionConfiguration<SurgeWave> {
         public SurgeWaveConsumption() {
-            super(Integer.MAX_VALUE);
+            super(-1);
         }
 
         @Override
