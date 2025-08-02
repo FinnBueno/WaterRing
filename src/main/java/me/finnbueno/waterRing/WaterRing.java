@@ -336,7 +336,6 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
 
     @Override
     public void stop() {
-
     }
 
     @Override
@@ -372,10 +371,9 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     @Override
     public ArrayList<ComboManager.AbilityInformation> getCombination() {
         return new ArrayList<>(Arrays.asList(
-                new ComboManager.AbilityInformation("Torrent", ClickType.SHIFT_DOWN),
+                new ComboManager.AbilityInformation("Torrent", ClickType.LEFT_CLICK),
                 new ComboManager.AbilityInformation("WaterManipulation", ClickType.LEFT_CLICK),
-                new ComboManager.AbilityInformation("WaterManipulation", ClickType.LEFT_CLICK),
-                new ComboManager.AbilityInformation("Torrent", ClickType.SHIFT_UP)
+                new ComboManager.AbilityInformation("WaterManipulation", ClickType.LEFT_CLICK)
         ));
     }
 
