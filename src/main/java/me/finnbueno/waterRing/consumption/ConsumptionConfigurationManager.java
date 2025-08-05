@@ -11,6 +11,7 @@ import commonslang3.projectkorra.lang3.StringUtils;
 import me.finnbueno.waterRing.utils.IAbilityFinder;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Method;
 import java.util.*;
@@ -88,15 +89,17 @@ public class ConsumptionConfigurationManager {
             String abilityName = (String) keyValuesForEntry.get(NAME_PATH);
 
             Method getSourceBlockMethod;
+            CoreAbility abilityInstance;
             try {
-                getSourceBlockMethod = getSourceGetterMethod(className, abilityName);
+                abilityInstance = getCoreAbilityByNameOrClass(className, abilityName);
+                getSourceBlockMethod = getSourceGetterMethod(abilityInstance, className, abilityName);
             } catch (IllegalArgumentException e) {
                 configErrors.put(i, Set.of(e.getMessage()));
                 continue;
             }
 
             consumptionConfiguration.put(
-                    className,
+                    abilityInstance.getClass().getSimpleName(),
                     new ReflectiveConsumptionConfiguration(getSourceBlockMethod, uses, isRefundable));
         }
 
@@ -110,9 +113,14 @@ public class ConsumptionConfigurationManager {
                 );
             });
         }
+
+        System.out.println("Configurations:");
+        consumptionConfiguration.forEach((key, value) -> {
+            System.out.printf("  %s: %b%n", key, value != null);
+        });
     }
 
-    private Method getSourceGetterMethod(String className, String abilityName) throws IllegalArgumentException {
+    private CoreAbility getCoreAbilityByNameOrClass(String className, String abilityName) throws IllegalArgumentException {
         CoreAbility abilityInstance;
         if (className != null) {
             abilityInstance = abilityFinder.getAbilityByClassName(className);
@@ -125,7 +133,10 @@ public class ConsumptionConfigurationManager {
                 throw new IllegalArgumentException("Could not find a class for ability by name %s".formatted(abilityName));
             }
         }
+        return abilityInstance;
+    }
 
+    private Method getSourceGetterMethod(CoreAbility abilityInstance, String className, String abilityName) throws IllegalArgumentException {
         Class<? extends CoreAbility> abilityClass = abilityInstance.getClass();
 
         String abilitySpecificationTerm = className == null ? "name" : "classname";
