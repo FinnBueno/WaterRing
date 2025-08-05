@@ -6,6 +6,7 @@ import com.projectkorra.projectkorra.ability.ComboAbility;
 import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.WaterAbility;
 import com.projectkorra.projectkorra.ability.util.ComboManager;
+import com.projectkorra.projectkorra.attribute.Attribute;
 import com.projectkorra.projectkorra.configuration.ConfigManager;
 import com.projectkorra.projectkorra.util.BlockSource;
 import com.projectkorra.projectkorra.util.BlockSourceInformation;
@@ -61,10 +62,14 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     private final Map<WaterAbility, Integer> refundableConsumers;
     private final WaterSourceGrabber sourceGrabber;
     private State state;
-    private int ammunition;
     private Block ringBlockOnCrosshair;
     private BlockSourceInformation leftClickSourceInfo;
     private BlockSourceInformation shiftDownSourceInfo;
+
+    private int ammunition;
+
+    @Attribute(Attribute.COOLDOWN)
+    private long cooldown;
 
     public static Block getRingBlockOnCrosshair(Player player) {
         return player.getEyeLocation().add(ANIMATION_VECTORS[getLookingAtIndex(player) % 12]).getBlock();
@@ -128,7 +133,8 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     public WaterRing(Player player, Block sourceBlock) {
         super(player);
 
-        this.ammunition = MAX_AMMUNITION;
+        this.ammunition = ConfigManager.getConfig().getInt("ExtraAbilities.FinnBueno.WaterRing.MaxAmmunition");
+        this.cooldown = ConfigManager.getConfig().getLong("ExtraAbilities.FinnBueno.WaterRing.Cooldown");
 
         this.refundableConsumers = new HashMap<>();
 
@@ -308,7 +314,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
 
     @Override
     public long getCooldown() {
-        return 0;
+        return cooldown;
     }
 
     @Override
@@ -336,6 +342,10 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         CONSUMPTION_CONFIGURATION_MANAGER.addDefaults();
         // This needs to be called AFTER all other moves have been loaded into ProjectKorra
         Bukkit.getScheduler().runTaskLater(ProjectKorra.plugin, CONSUMPTION_CONFIGURATION_MANAGER::load, 1);
+
+        ConfigManager.defaultConfig.get().addDefault("ExtraAbilities.FinnBueno.WaterRing.MaxAmmunition", 20);
+        ConfigManager.defaultConfig.get().addDefault("ExtraAbilities.FinnBueno.WaterRing.Cooldown", 5000);
+        ConfigManager.defaultConfig.save();
     }
 
     @Override
