@@ -1,0 +1,6 @@
+ExtraAbilities:
+  FinnBueno:
+    WaterRing:
+      Consumption:
+        - Uses: 1
+          Refundable: false

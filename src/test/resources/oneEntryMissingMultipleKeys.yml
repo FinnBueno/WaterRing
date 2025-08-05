@@ -1,0 +1,5 @@
+ExtraAbilities:
+  FinnBueno:
+    WaterRing:
+      Consumption:
+        - Name: TestAbility

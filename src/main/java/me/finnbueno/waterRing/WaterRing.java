@@ -6,12 +6,16 @@ import com.projectkorra.projectkorra.ability.ComboAbility;
 import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.WaterAbility;
 import com.projectkorra.projectkorra.ability.util.ComboManager;
+import com.projectkorra.projectkorra.configuration.ConfigManager;
 import com.projectkorra.projectkorra.util.BlockSource;
 import com.projectkorra.projectkorra.util.BlockSourceInformation;
 import com.projectkorra.projectkorra.util.ClickType;
 import com.projectkorra.projectkorra.util.TempBlock;
 import com.projectkorra.projectkorra.waterbending.*;
 import com.projectkorra.projectkorra.waterbending.util.WaterSourceGrabber;
+import me.finnbueno.waterRing.consumption.ConsumptionConfiguration;
+import me.finnbueno.waterRing.consumption.ConsumptionConfigurationManager;
+import me.finnbueno.waterRing.utils.AbilityFinder;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -34,12 +38,8 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     */
     private static Map<Player, Map<BlockSource.BlockSourceType, Map<ClickType, BlockSourceInformation>>> playerSources;
 
-    public static final Map<Class<? extends WaterAbility>, ConsumptionConfiguration<? extends WaterAbility>> CONSUMPTION_CONFIGURATION = Map.of(
-                Torrent.class, ConsumptionConfiguration.TORRENT,
-            WaterManipulation.class, ConsumptionConfiguration.WATER_MANIPULATION,
-            SurgeWave.class, ConsumptionConfiguration.SURGE_WAVE,
-            SurgeWall.class, ConsumptionConfiguration.SURGE_WALL
-    );
+    private static final ConsumptionConfigurationManager CONSUMPTION_CONFIGURATION_MANAGER =
+            new ConsumptionConfigurationManager(ConfigManager.defaultConfig, new AbilityFinder());
 
     private static final Vector[] ANIMATION_VECTORS = new Vector[] {
             new Vector(0, 0, 2),
@@ -79,8 +79,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     }
 
     public static boolean isSourcedFromWaterRing(WaterAbility waterAbility) {
-        // unfortunately there is no way to make this part work with generics
-        ConsumptionConfiguration configuration = CONSUMPTION_CONFIGURATION.get(waterAbility.getClass());
+        ConsumptionConfiguration configuration = CONSUMPTION_CONFIGURATION_MANAGER.getConfiguration(waterAbility.getClass());
         if (configuration == null) {
             return false;
         }
@@ -92,7 +91,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         ConsumptionConfiguration configuration;
         VirtualWaterSourceBlock virtualWaterSourceBlock;
         try {
-            configuration = CONSUMPTION_CONFIGURATION.get(waterAbility.getClass());
+            configuration = CONSUMPTION_CONFIGURATION_MANAGER.getConfiguration(waterAbility.getClass());
             if (configuration == null) throw new NoSuchElementException();
             virtualWaterSourceBlock = (VirtualWaterSourceBlock) configuration.getSourceBlock(waterAbility);
         } catch (ClassCastException | NoSuchElementException e) {
@@ -331,7 +330,12 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
+
         ProjectKorra.plugin.getServer().getPluginManager().registerEvents(new WaterRingListener(), ProjectKorra.plugin);
+
+        CONSUMPTION_CONFIGURATION_MANAGER.addDefaults();
+        // This needs to be called AFTER all other moves have been loaded into ProjectKorra
+        Bukkit.getScheduler().runTaskLater(ProjectKorra.plugin, CONSUMPTION_CONFIGURATION_MANAGER::load, 1);
     }
 
     @Override
