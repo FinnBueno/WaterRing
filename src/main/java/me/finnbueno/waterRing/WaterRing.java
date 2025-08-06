@@ -30,6 +30,9 @@ import org.bukkit.util.Vector;
 
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class WaterRing extends WaterAbility implements AddonAbility, ComboAbility {
 
@@ -62,7 +65,8 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     private final Map<WaterAbility, Integer> refundableConsumers;
     private final WaterSourceGrabber sourceGrabber;
     private State state;
-    private Block ringBlockOnCrosshair;
+    private Block playerEyeBlockOnLastTick;
+    private long lastSourceRefreshTimestamp;
     private BlockSourceInformation leftClickSourceInfo;
     private BlockSourceInformation shiftDownSourceInfo;
 
@@ -70,18 +74,6 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
 
     @Attribute(Attribute.COOLDOWN)
     private long cooldown;
-
-    public static Block getRingBlockOnCrosshair(Player player) {
-        return player.getEyeLocation().add(ANIMATION_VECTORS[getLookingAtIndex(player) % 12]).getBlock();
-    }
-
-    private static int getLookingAtIndex(Player player) {
-        float yaw = player.getEyeLocation().getYaw() + 180 + 15;
-        if (yaw < 0) {
-            yaw = 360 + yaw;
-        }
-        return (((int) Math.floor(yaw / 30)) + 6) % 12;
-    }
 
     public static boolean isSourcedFromWaterRing(WaterAbility waterAbility) {
         ConsumptionConfiguration configuration = CONSUMPTION_CONFIGURATION_MANAGER.getConfiguration(waterAbility.getClass());
@@ -133,8 +125,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     public WaterRing(Player player, Block sourceBlock) {
         super(player);
 
-        this.ammunition = ConfigManager.getConfig().getInt("ExtraAbilities.FinnBueno.WaterRing.MaxAmmunition");
-        this.cooldown = ConfigManager.getConfig().getLong("ExtraAbilities.FinnBueno.WaterRing.Cooldown");
+        initFields();
 
         this.refundableConsumers = new HashMap<>();
 
@@ -151,8 +142,13 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             this.sourceGrabber = new WaterSourceGrabber(player, sourceBlock.getLocation());
         }
 
-        refreshVirtualSources(getRingBlockOnCrosshair(player));
+        refreshVirtualSources(getRandomRingBlock(player));
         start();
+    }
+
+    private void initFields() {
+        this.ammunition = ConfigManager.getConfig().getInt("ExtraAbilities.FinnBueno.WaterRing.MaxAmmunition");
+        this.cooldown = ConfigManager.getConfig().getLong("ExtraAbilities.FinnBueno.WaterRing.Cooldown");
     }
 
     @Override
@@ -188,8 +184,11 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             return;
         }
 
-        Block currentRingBlockOnCrosshair = getRingBlockOnCrosshair(player);
-        if (this.ringBlockOnCrosshair != currentRingBlockOnCrosshair) {
+        Block currentRingBlockOnCrosshair = getRandomRingBlock(player);
+        Block eyeBlock = player.getEyeLocation().getBlock();
+        if (this.playerEyeBlockOnLastTick != eyeBlock || this.lastSourceRefreshTimestamp < System.currentTimeMillis() - 1000) {
+            this.playerEyeBlockOnLastTick = eyeBlock;
+            this.lastSourceRefreshTimestamp = System.currentTimeMillis();
             refreshVirtualSources(currentRingBlockOnCrosshair);
         }
 
@@ -216,29 +215,49 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
 
         sourcesForWater.put(ClickType.SHIFT_DOWN, leftClickSourceInfo);
         sourcesForWater.put(ClickType.LEFT_CLICK, shiftDownSourceInfo);
-
-        this.ringBlockOnCrosshair = block;
     }
 
     private void displayRing() {
         animationBlocks.forEach(TempBlock::revertBlock);
 
-        int lookingAtIndex = getLookingAtIndex(player);
         Location at = player.getEyeLocation();
+        Set<Integer> indexesInFront = getIndexesInFrontOfPlayer(player);
         for (int step = 0; step < 12; step++) {
             Vector animationStep = ANIMATION_VECTORS[step];
             at.add(animationStep);
             Levelled waterLevelData = (Levelled) Material.WATER.createBlockData();
 
             int levelForStep = getWaterLevelForAnimationBlock(step);
-            waterLevelData.setLevel(levelForStep == 7 ? waterLevelData.getMaximumLevel() : levelForStep);
-            int toTheLeft = lookingAtIndex == 0 ? 11 : lookingAtIndex - 1;
-            int toTheRight = (lookingAtIndex + 1) % 12;
-            if (step != lookingAtIndex && step != toTheRight && step != toTheLeft) {
+            waterLevelData.setLevel(levelForStep);
+            if (!indexesInFront.contains(step)) {
                 animationBlocks.add(new TempBlock(at.getBlock(), waterLevelData));
             }
             at.subtract(animationStep);
         }
+    }
+
+    private Block getRandomRingBlock(Player player) {
+        Set<Integer> waterlessSection = getIndexesInFrontOfPlayer(player);
+        int index = IntStream.rangeClosed(0, ANIMATION_VECTORS.length).boxed()
+                .filter(i -> !waterlessSection.contains(i))
+                .skip(ThreadLocalRandom.current().nextInt(ANIMATION_VECTORS.length - waterlessSection.size()))
+                .findFirst().orElse(0);
+        return player.getEyeLocation().add(ANIMATION_VECTORS[index]).getBlock();
+    }
+
+    private int getLookingAtIndex(Player player) {
+        float yaw = player.getEyeLocation().getYaw() + 180 + 15;
+        if (yaw < 0) {
+            yaw = 360 + yaw;
+        }
+        return (((int) Math.floor(yaw / 30)) + 6) % 12;
+    }
+
+    private Set<Integer> getIndexesInFrontOfPlayer(Player player) {
+        int lookingAtIndex = getLookingAtIndex(player);
+        int toTheLeft = lookingAtIndex == 0 ? 11 : lookingAtIndex - 1;
+        int toTheRight = (lookingAtIndex + 1) % 12;
+        return Set.of(toTheLeft, lookingAtIndex, toTheRight);
     }
 
     private int getWaterLevelForAnimationBlock(long index) {
@@ -246,12 +265,12 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         index %= 12;
 
         if (index == 0 || index == 2) {
-            return 5;
+            return 2;
         }
         if (index == 1) {
-            return 7;
+            return 0;
         }
-        return 1;
+        return 4;
     }
 
     public void decreaseUses(int amount) {
