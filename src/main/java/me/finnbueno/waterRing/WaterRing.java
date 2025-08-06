@@ -393,6 +393,10 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
 
     @Override
     public WaterRing createNewComboInstance(Player player) {
+        if (CoreAbility.getAbility(player, getClass()) != null) {
+            return null;
+        }
+
         WaterSpoutWave wave = CoreAbility.getAbility(player, WaterSpoutWave.class);
         if (wave != null) {
             wave.remove();
