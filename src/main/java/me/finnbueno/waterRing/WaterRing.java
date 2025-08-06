@@ -67,8 +67,6 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
     private State state;
     private Block playerEyeBlockOnLastTick;
     private long lastSourceRefreshTimestamp;
-    private BlockSourceInformation leftClickSourceInfo;
-    private BlockSourceInformation shiftDownSourceInfo;
 
     private int ammunition;
 
@@ -200,13 +198,13 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         var sourcesForPlayer = playerSources.computeIfAbsent(player, (_) -> new HashMap<>());
         var sourcesForWater = sourcesForPlayer.computeIfAbsent(BlockSource.BlockSourceType.WATER, (_) -> new HashMap<>());
 
-        this.leftClickSourceInfo = new BlockSourceInformation(
+        BlockSourceInformation leftClickSourceInfo = new BlockSourceInformation(
                 player,
                 new VirtualWaterSourceBlock(this, player, block),
                 BlockSource.BlockSourceType.WATER,
                 ClickType.SHIFT_DOWN
         );
-        this.shiftDownSourceInfo = new BlockSourceInformation(
+        BlockSourceInformation shiftDownSourceInfo = new BlockSourceInformation(
                 player,
                 new VirtualWaterSourceBlock(this, player, block),
                 BlockSource.BlockSourceType.WATER,
@@ -313,8 +311,8 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         var waterSources = sourcesForPlayer.get(BlockSource.BlockSourceType.WATER);
         if (waterSources == null) return;
 
-        waterSources.remove(ClickType.LEFT_CLICK, leftClickSourceInfo);
-        waterSources.remove(ClickType.SHIFT_DOWN, shiftDownSourceInfo);
+        waterSources.remove(ClickType.LEFT_CLICK);
+        waterSources.remove(ClickType.SHIFT_DOWN);
     }
 
     private int getAmmunitionLeft() {
