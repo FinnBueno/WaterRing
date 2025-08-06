@@ -31,8 +31,6 @@ import org.bukkit.util.Vector;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class WaterRing extends WaterAbility implements AddonAbility, ComboAbility {
 
@@ -140,7 +138,7 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             this.sourceGrabber = new WaterSourceGrabber(player, sourceBlock.getLocation());
         }
 
-        refreshVirtualSources(getRandomRingBlock(player));
+        refreshVirtualSources(getRandomRingBlockInFrontOfPlayer(player));
         start();
     }
 
@@ -182,12 +180,12 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
             return;
         }
 
-        Block currentRingBlockOnCrosshair = getRandomRingBlock(player);
+        Block randomRingBlockInFrontOfPlayer = getRandomRingBlockInFrontOfPlayer(player);
         Block eyeBlock = player.getEyeLocation().getBlock();
         if (this.playerEyeBlockOnLastTick != eyeBlock || this.lastSourceRefreshTimestamp < System.currentTimeMillis() - 1000) {
             this.playerEyeBlockOnLastTick = eyeBlock;
             this.lastSourceRefreshTimestamp = System.currentTimeMillis();
-            refreshVirtualSources(currentRingBlockOnCrosshair);
+            refreshVirtualSources(randomRingBlockInFrontOfPlayer);
         }
 
         this.bossBar.setProgress(Math.clamp(this.ammunition / (double) MAX_AMMUNITION, 0, 1));
@@ -234,11 +232,10 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         }
     }
 
-    private Block getRandomRingBlock(Player player) {
+    private Block getRandomRingBlockInFrontOfPlayer(Player player) {
         Set<Integer> waterlessSection = getIndexesInFrontOfPlayer(player);
-        int index = IntStream.rangeClosed(0, ANIMATION_VECTORS.length).boxed()
-                .filter(i -> !waterlessSection.contains(i))
-                .skip(ThreadLocalRandom.current().nextInt(ANIMATION_VECTORS.length - waterlessSection.size()))
+        int index = waterlessSection.stream()
+                .skip(ThreadLocalRandom.current().nextInt(waterlessSection.size()))
                 .findFirst().orElse(0);
         return player.getEyeLocation().add(ANIMATION_VECTORS[index]).getBlock();
     }
