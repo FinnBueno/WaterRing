@@ -5,6 +5,7 @@ import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.WaterAbility;
 import com.projectkorra.projectkorra.configuration.Config;
 import com.projectkorra.projectkorra.waterbending.SurgeWall;
+import com.projectkorra.projectkorra.waterbending.SurgeWave;
 import com.projectkorra.projectkorra.waterbending.Torrent;
 import com.projectkorra.projectkorra.waterbending.WaterManipulation;
 import commonslang3.projectkorra.lang3.StringUtils;
@@ -15,15 +16,16 @@ import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class ConsumptionConfigurationManager {
 
     public static final String CONFIG_SECTION_PATH = "ExtraAbilities.FinnBueno.WaterRing.Consumption";
 
-    private static final Map<String, Object> DEFAULT_TORRENT_VALUES = createDefaultConfigValueMap("Torrent", Torrent.class, -1, false);
+    private static final Map<String, Object> DEFAULT_TORRENT_VALUES = createDefaultConfigValueMap("Torrent", Torrent.class, 5, false);
     private static final Map<String, Object> DEFAULT_WATER_MANIPULATION_VALUES = createDefaultConfigValueMap("WaterManipulation", WaterManipulation.class, 1, false);
     private static final Map<String, Object> DEFAULT_SURGE_WALL_VALUES = createDefaultConfigValueMap("Surge", SurgeWall.class, 5, true);
-    private static final Map<String, Object> DEFAULT_SURGE_WAVE_VALUES = createDefaultConfigValueMap("Surge", SurgeWall.class, -1, false);
+    private static final Map<String, Object> DEFAULT_SURGE_WAVE_VALUES = createDefaultConfigValueMap("Surge", SurgeWave.class, 5, false);
 
     private static final String NAME_PATH = "Name";
     private static final String CLASSNAME_PATH = "ClassName";
@@ -100,7 +102,7 @@ public class ConsumptionConfigurationManager {
 
             consumptionConfiguration.put(
                     abilityInstance.getClass().getSimpleName(),
-                    new ReflectiveConsumptionConfiguration(getSourceBlockMethod, uses, isRefundable));
+                    new ReflectiveConsumptionConfiguration(abilityInstance.getName(), getSourceBlockMethod, uses, isRefundable));
         }
 
         if (!configErrors.isEmpty()) {
@@ -113,11 +115,6 @@ public class ConsumptionConfigurationManager {
                 );
             });
         }
-
-        System.out.println("Configurations:");
-        consumptionConfiguration.forEach((key, value) -> {
-            System.out.printf("  %s: %b%n", key, value != null);
-        });
     }
 
     private CoreAbility getCoreAbilityByNameOrClass(String className, String abilityName) throws IllegalArgumentException {
@@ -186,5 +183,16 @@ public class ConsumptionConfigurationManager {
             errors.add("'Refundable' must be true or false");
         }
         return errors;
+    }
+
+    public String getConfiguredMovesAsStringList() {
+        List<String> listOfMoves = consumptionConfiguration.values().stream()
+                .map(ConsumptionConfiguration::getAbilityName)
+                .distinct()
+                .toList();
+        if (listOfMoves.isEmpty()) {
+            return "none";
+        }
+        return String.join(", ", listOfMoves.subList(0, listOfMoves.size() - 1)) + " and " + listOfMoves.getLast();
     }
 }

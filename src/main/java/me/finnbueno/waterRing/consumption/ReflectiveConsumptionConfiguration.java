@@ -12,8 +12,8 @@ public class ReflectiveConsumptionConfiguration extends ConsumptionConfiguration
 
     private final Method getSourceBlockMethod;
 
-    public ReflectiveConsumptionConfiguration(Method getSourceBlockMethod, int uses, boolean isRefundable) {
-        super(uses, isRefundable);
+    public ReflectiveConsumptionConfiguration(String abilityName, Method getSourceBlockMethod, int uses, boolean isRefundable) {
+        super(abilityName, uses, isRefundable);
         this.getSourceBlockMethod = getSourceBlockMethod;
     }
 

@@ -35,6 +35,12 @@ import java.util.concurrent.ThreadLocalRandom;
 public class WaterRing extends WaterAbility implements AddonAbility, ComboAbility {
 
     private static final int MAX_AMMUNITION = 20;
+    public static final String DEFAULT_INSTRUCTIONS = "Torrent (Left Click) > WaterManipulation (Left Click) > WaterManipulation (Left Click)";
+    public static final String DEFAULT_DESCRIPTION = """
+            Create a ring of water around you to use various moves while further away from a source.
+            Perform the combo while looking at water, or while on a water spout or wave. Then, simply cast your moves like normal.
+            You can use the ring to cast {waterring moves}.
+            """;
     /*
         Per player, per type of source (water, earth, etc.), per clicking type (shift or click), track a block
     */
@@ -360,10 +366,19 @@ public class WaterRing extends WaterAbility implements AddonAbility, ComboAbilit
         ConfigManager.defaultConfig.get().addDefault("ExtraAbilities.FinnBueno.WaterRing.MaxAmmunition", 20);
         ConfigManager.defaultConfig.get().addDefault("ExtraAbilities.FinnBueno.WaterRing.Cooldown", 5000);
         ConfigManager.defaultConfig.save();
+
+        ConfigManager.languageConfig.get().addDefault("Abilities.Water.Combo.WaterRing.Description", DEFAULT_DESCRIPTION);
+        ConfigManager.languageConfig.get().addDefault("Abilities.Water.Combo.WaterRing.Instructions", DEFAULT_INSTRUCTIONS);
+        ConfigManager.languageConfig.save();
     }
 
     @Override
     public void stop() {
+    }
+
+    @Override
+    public String getDescription() {
+        return super.getDescription().replace("{waterring moves}", CONSUMPTION_CONFIGURATION_MANAGER.getConfiguredMovesAsStringList());
     }
 
     @Override

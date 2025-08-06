@@ -4,8 +4,8 @@ import com.projectkorra.projectkorra.ability.WaterAbility;
 import org.bukkit.block.Block;
 
 public class GenericConsumptionConfiguration extends ConsumptionConfiguration {
-    public GenericConsumptionConfiguration(int uses) {
-        super(uses);
+    public GenericConsumptionConfiguration(String abilityName, int uses) {
+        super(abilityName, uses);
     }
 
     @Override
